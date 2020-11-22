@@ -119,7 +119,7 @@ class App {
               	  
               	try {
               		// connect to gcp
-                    GoogleCredentials credentials = GoogleCredentials.fromStream(new FileInputStream("/Users/bellahilty/eclipse-workspace/iph3_course_project/src/credentials.json"))
+                    GoogleCredentials credentials = GoogleCredentials.fromStream(new FileInputStream("credentials.json"))
                             .createScoped(Lists.newArrayList("https://www.googleapis.com/auth/cloud-platform"));
                     HttpRequestInitializer requestInitializer = new HttpCredentialsAdapter(credentials);
                     Dataproc dataproc = new Dataproc.Builder(new NetHttpTransport(),new JacksonFactory(), requestInitializer).build();
@@ -142,7 +142,7 @@ class App {
                 }
               	
               	try {
-              		GoogleCredentials credentials = GoogleCredentials.fromStream(new FileInputStream("/Users/bellahilty/eclipse-workspace/iph3_course_project/src/credentials.json"))
+              		GoogleCredentials credentials = GoogleCredentials.fromStream(new FileInputStream("credentials.json"))
                             .createScoped(Lists.newArrayList("https://www.googleapis.com/auth/cloud-platform"));
               		Storage storage = StorageOptions.newBuilder().setCredentials(credentials).build().getService();
               		
