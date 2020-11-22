@@ -158,7 +158,7 @@ class App {
 	                    Dataproc dataproc = new Dataproc.Builder(new NetHttpTransport(),new JacksonFactory(), requestInitializer).build();
 	                    // create new job for cluster
 	                    HadoopJob h = new HadoopJob();
-	                    h.setMainJarFileUri("gs://dataproc-staging-us-central1-688118264243-sjzrg4jj/JAR/processor.jar");
+	                    h.setMainJarFileUri("gs://dataproc-staging-us-central1-688118264243-sjzrg4jj/JAR/processor2.jar");
 	                    // input url goes here to get folder path for whichever data is being used
 	                    h.setArgs(ImmutableList.of("processor",
 	                                 inputurl,
