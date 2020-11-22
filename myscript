@@ -12,7 +12,7 @@
 # Copyright (c) Eric S. Raymond, 2010-08-01. BSD terms apply (if anybody really thinks that this
 # script is long and non-obvious enough to fall under copyright law).
 #
-commit="98022c2f6d4402e11cc91d4036e5565d373af852"
+commit="08cbc48e6003ea7bca445bd4ace367a492781f3b"
 date="Sun Nov 22 13:38:53 2020 -0500"
 git filter-branch --env-filter \
   "if test \$GIT_COMMIT = '$commit'
