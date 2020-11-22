@@ -28,7 +28,7 @@ class App {
   JPanel panel = new JPanel();
   JPanel p2 = new JPanel();
   JPanel p3 = new JPanel();
-  JTextArea ta = new JTextArea();
+  JTextArea ta = new JTextArea(25,55);
 
   JButton button;
   JButton searchbtn;
@@ -94,14 +94,123 @@ class App {
               public void actionPerformed(ActionEvent e) {
             	  String term = tf.getText();
             	  label.setText("You searched for the term: " + term);
-            	  label2.setText("Your search was executed in ms");
-            	  p2.add(label2);
+            	  long start = System.currentTimeMillis();
             	  s.setVisible(false);
             	  tf.setVisible(false);
             	  hugo.setVisible(false);
             	  shake.setVisible(false);
             	  tols.setVisible(false);
             	  all.setVisible(false);
+            	  
+            	  // get source to be used for the input
+              	  String inSource = "";
+              	  if(hugo.isSelected()) {
+              		  inSource = "Hugo/";
+              	  } else if(shake.isSelected()) {
+              		  inSource = "shakespeare/*/";
+              	  } else if(tols.isSelected()) {
+              		  inSource = "Tolstoy/";
+              	  } else if(all.isSelected()) {
+              		  inSource = "all/";
+              	  }
+              	  // if all button is selected then string stays empty as intended
+              	  
+              	  String inputurl = "gs://dataproc-staging-us-central1-688118264243-sjzrg4jj/Data/" + inSource;
+              	  
+              	try {
+              		// connect to gcp
+                    GoogleCredentials credentials = GoogleCredentials.fromStream(new FileInputStream("credentials.json"))
+                            .createScoped(Lists.newArrayList("https://www.googleapis.com/auth/cloud-platform"));
+                    HttpRequestInitializer requestInitializer = new HttpCredentialsAdapter(credentials);
+                    Dataproc dataproc = new Dataproc.Builder(new NetHttpTransport(),new JacksonFactory(), requestInitializer).build();
+                    // create new job for cluster
+                    HadoopJob h = new HadoopJob();
+                    h.setMainJarFileUri("gs://dataproc-staging-us-central1-688118264243-sjzrg4jj/JAR/temp.jar");
+                    // input url goes here to get folder path for whichever data is being used
+                    h.setArgs(ImmutableList.of("processor", inputurl, "gs://dataproc-staging-us-central1-688118264243-sjzrg4jj/output"));
+                    
+                    dataproc.projects().regions().jobs().submit("cs1660-296421" , "us-central1", new SubmitJobRequest()
+                                 .setJob(new Job()
+                                    .setPlacement(new JobPlacement()
+                                        .setClusterName("cluster-1"))
+                                 .setHadoopJob(h)))
+                                .execute();
+                    System.out.println("job finished successfully");
+                } catch (Exception ex) {
+                    System.out.println("Error!" + ex);
+                    ex.printStackTrace();
+                }
+              	
+              	try {
+              		GoogleCredentials credentials = GoogleCredentials.fromStream(new FileInputStream("credentials.json"))
+                            .createScoped(Lists.newArrayList("https://www.googleapis.com/auth/cloud-platform"));
+              		Storage storage = StorageOptions.newBuilder().setCredentials(credentials).build().getService();
+              		
+              		StorageObject out = new StorageObject();
+                    out.setBucket("dataproc-staging-us-central1-688118264243-sjzrg4jj");
+                    out.setName("output.txt");
+                    Storage.ComposeRequest.Builder requestBuilder = new Storage.ComposeRequest.Builder();
+                    
+                    Page<Blob> b = storage.list("dataproc-staging-us-central1-688118264243-sjzrg4jj", BlobListOption.currentDirectory(), BlobListOption.prefix("output/"));
+		            Iterator<Blob> iterator = b.iterateAll().iterator();
+		            ArrayList<String> blobList = new ArrayList<>();
+		            ArrayList<BlobId> blobIDs = new ArrayList<>();
+		            while(iterator.hasNext()) {
+		                Blob currBlob = iterator.next();
+		                blobIDs.add(currBlob.getBlobId());
+		                String name = currBlob.getName();
+		                // merge all output files together except for success file
+		                if (!name.equals("output/_SUCCESS")) {
+		                    blobList.add(name);
+		                }
+		            }
+		            
+		            requestBuilder.addSource(blobList);
+		            
+		            requestBuilder.setTarget(BlobInfo.newBuilder("dataproc-staging-us-central1-688118264243-sjzrg4jj", "output.txt").build());
+		            Storage.ComposeRequest request = requestBuilder.build();
+		            storage.compose(request);
+		            
+		            // delete existing out files if they exist
+		            while(iterator.hasNext()) {
+		            	Blob currBlob = iterator.next();
+		            	storage.delete(currBlob.getBlobId());
+		            }
+		            
+		            storage.delete(blobIDs);	
+		            storage.delete("dataproc-staging-us-central1-688118264243-sjzrg4jj","output/");
+		            
+		            Blob blob = storage.get(BlobId.of("dataproc-staging-us-central1-688118264243-sjzrg4jj", "output.txt"));
+		            blob.downloadTo(Paths.get("./output.txt"));
+		            
+		            Scanner in = new Scanner(new File("output.txt"));
+		            ta.setLineWrap(true);
+		            ta.setEditable(false);
+		            JScrollPane scroll = new JScrollPane(ta);
+		            scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
+		            p3.add(scroll);
+		            int count = 0;
+		            // output search results
+		            while(in.hasNextLine()) {
+		                String curr = in.nextLine();
+		                if(curr.contains(term)) {
+		                	ta.append(curr + "\n");
+		                }
+		            }
+		            long end = System.currentTimeMillis();
+		            long time = end - start;
+		            label2.setText("Your search was executed in " + time + " ms");
+	            	 p2.add(label2);
+		            ta.revalidate();
+		            ta.repaint();
+		            
+		            storage.delete("dataproc-staging-us-central1-688118264243-sjzrg4jj","output.txt");
+		            
+		            
+              	} catch (Exception ex) {
+              		System.out.println("ERROR: " + ex);
+              		ex.printStackTrace();
+              	}
               }
             });
           }
@@ -142,9 +251,11 @@ class App {
               	  if(hugo.isSelected()) {
               		  inSource = "Hugo/";
               	  } else if(shake.isSelected()) {
-              		  inSource = "Shakespeare/";
+              		  inSource = "shakespeare/*/";
               	  } else if(tols.isSelected()) {
               		  inSource = "Tolstoy/";
+              	  } else if(all.isSelected()) {
+              		  inSource = "all/";
               	  }
               	  // if all button is selected then string stays empty as intended
               	  
@@ -152,17 +263,15 @@ class App {
               	  
 	              	try {
 	              		// connect to gcp
-	                    GoogleCredentials credentials = GoogleCredentials.fromStream(new FileInputStream("/Users/bellahilty/eclipse-workspace/iph3_course_project/src/credentials.json"))
+	                    GoogleCredentials credentials = GoogleCredentials.fromStream(new FileInputStream("credentials.json"))
 	                            .createScoped(Lists.newArrayList("https://www.googleapis.com/auth/cloud-platform"));
 	                    HttpRequestInitializer requestInitializer = new HttpCredentialsAdapter(credentials);
 	                    Dataproc dataproc = new Dataproc.Builder(new NetHttpTransport(),new JacksonFactory(), requestInitializer).build();
 	                    // create new job for cluster
 	                    HadoopJob h = new HadoopJob();
-	                    h.setMainJarFileUri("gs://dataproc-staging-us-central1-688118264243-sjzrg4jj/JAR/processor2.jar");
+	                    h.setMainJarFileUri("gs://dataproc-staging-us-central1-688118264243-sjzrg4jj/JAR/temp.jar");
 	                    // input url goes here to get folder path for whichever data is being used
-	                    h.setArgs(ImmutableList.of("processor",
-	                                 inputurl,
-	                                 "gs://dataproc-staging-us-central1-688118264243-sjzrg4jj/output"));
+	                    h.setArgs(ImmutableList.of("processor", inputurl, "gs://dataproc-staging-us-central1-688118264243-sjzrg4jj/output"));
 	                    
 	                    dataproc.projects().regions().jobs().submit("cs1660-296421" , "us-central1", new SubmitJobRequest()
 	                                 .setJob(new Job()
@@ -177,7 +286,7 @@ class App {
 	                }
 	              	
 	              	try {
-	              		GoogleCredentials credentials = GoogleCredentials.fromStream(new FileInputStream("/Users/bellahilty/eclipse-workspace/iph3_course_project/src/credentials.json"))
+	              		GoogleCredentials credentials = GoogleCredentials.fromStream(new FileInputStream("credentials.json"))
 	                            .createScoped(Lists.newArrayList("https://www.googleapis.com/auth/cloud-platform"));
 	              		Storage storage = StorageOptions.newBuilder().setCredentials(credentials).build().getService();
 	              		
@@ -196,26 +305,34 @@ class App {
 			                String name = currBlob.getName();
 			                // merge all output files together except for success file
 			                if (!name.equals("output/_SUCCESS")) {
-			                    //System.out.println("adding " + name);
 			                    blobList.add(name);
 			                }
 			            }
 			            
 			            requestBuilder.addSource(blobList);
 			            
-			            requestBuilder.setTarget(
-			                    BlobInfo.newBuilder("dataproc-staging-us-central1-688118264243-sjzrg4jj", "output.txt").build());
+			            requestBuilder.setTarget(BlobInfo.newBuilder("dataproc-staging-us-central1-688118264243-sjzrg4jj", "output.txt").build());
 			            Storage.ComposeRequest request = requestBuilder.build();
+			            storage.compose(request);
 			            
-			            BlobInfo comp = storage.compose(request);
-			           
-			            storage.delete(blobIDs);	// delete out file if one exists
+			            // delete existing out files if they exist
+			            while(iterator.hasNext()) {
+			            	Blob currBlob = iterator.next();
+			            	storage.delete(currBlob.getBlobId());
+			            }
+			            
+			            storage.delete(blobIDs);	
+			            storage.delete("dataproc-staging-us-central1-688118264243-sjzrg4jj","output/");
 			            
 			            Blob blob = storage.get(BlobId.of("dataproc-staging-us-central1-688118264243-sjzrg4jj", "output.txt"));
 			            blob.downloadTo(Paths.get("./output.txt"));
 			            
 			            Scanner in = new Scanner(new File("output.txt"));
-			            p3.add(ta);
+			            ta.setLineWrap(true);
+			            ta.setEditable(false);
+			            JScrollPane scroll = new JScrollPane(ta);
+			            scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
+			            p3.add(scroll);
 			            int count = 0;
 			            // output top n terms
 			            while(in.hasNextLine() && count < n) {
@@ -223,12 +340,17 @@ class App {
 			                String curr = in.nextLine();
 			                ta.append(curr + "\n");
 			            }
+			            ta.revalidate();
 			            ta.repaint();
+			            
+			            storage.delete("dataproc-staging-us-central1-688118264243-sjzrg4jj","output.txt");
+			            
+			            
 	              	} catch (Exception ex) {
 	              		System.out.println("ERROR: " + ex);
 	              		ex.printStackTrace();
 	              	}
-              	
+	              	
                  }
               });
           }
